@@ -1,0 +1,100 @@
+1:exctract :
+import fs from 'fs';
+import mysql from 'mysql2/promise';
+ 
+async function insertDataIntoDatabase(data) {
+  const connection = await mysql.createConnection({
+    host: '161.97.144.27',
+    port: "8095",
+    user: 'root',
+    password: 'guessagain95',
+    database: 'Group5SearchEngine'
+  });
+ 
+    for (let powerpointMetadata of data) {
+     
+      let fileName = powerpointMetadata.digest + '.ppt';
+      console.log(fileName)
+      delete powerpointMetadata.digest;
+ 
+      delete powerpointMetadata.sha256;
+      delete powerpointMetadata.sha512;
+ 
+      console.log('');
+      console.log(fileName);
+      console.log(powerpointMetadata);
+ 
+      await connection.query('INSERT INTO PowerPoint (PowerPoint_fileName, PowerPoint_metadata) VALUES (?, ?)',
+       [fileName, JSON.stringify(powerpointMetadata)]);
+    }
+ 
+}
+ 
+let json = fs.readFileSync('./powerpoint.json', 'utf-8');
+ 
+let data = JSON.parse(json);
+ 
+ 
+ insertDataIntoDatabase(data);
+2.index:
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PowerPoint</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body> 
+  <h1>PowerPoint search</h1>
+
+  <form name="searchForm" onsubmit="search(); return false;">
+    <input name="term" placeholder="Search term">
+    <button type="submit">search</button>
+    <p><a href="index.html" class="back">Back to main page</a></p>
+    <p class="search-label">
+      Search for:
+      <select name="searchType">
+        <option value="all">All information</option>
+        <option value="title">Title</option>
+        <option value="company">Company Name</option>
+        <option value="creation_date">Creation Date</option>
+
+      </select>
+    </p>
+  </form>
+  <article class="searchResults">
+    Search for a PowerPoint by title or company name.
+  </article>
+  <script src="main-powerpoints.js"></script>
+</body>
+
+</html>
+3:main:
+async function search() {
+  let searchTerm = document.forms.searchForm.term.value;
+  let searchType = document.forms.searchForm.searchType.value;
+  console.log(searchType);
+  document.forms.searchForm.term.value = '';
+  let rawData = await fetch('/api/powerpoint/' + searchTerm + '/' + searchType);
+  let powerpoints = await rawData.json();
+  let html = `
+    <p>You searched for "${searchTerm}"...</p>
+    <p>You found ${powerpoints.length} results.</p>
+  `;
+  for (let PowerPoint of powerpoints) {
+    let meta = PowerPoint.PowerPoint_metadata;
+    html += `
+      <section>
+        <h2>${meta.title}</h2>
+        <p><b>Company Name:</b> ${meta.company}</p>
+        <p><b>Creation Date:</b> ${meta.creation_date.split('T')[0]}</p> 
+        <a href="powerpoints/${PowerPoint.PowerPoint_fileName}" target="_blank">Download the PowerPoint here...</a>
+      </section>
+    `;
+  }
+  let searchResultsElement = document.querySelector('.searchResults');
+  searchResultsElement.innerHTML = html;
+}
