@@ -1,4 +1,4 @@
- 1:abstraction 
+ 1:extract 
 import fs from 'fs';
 import musicMetadata from 'music-metadata';
 import mysql from 'mysql2/promise';
@@ -74,7 +74,7 @@ process.exit();
 </body>
 
 </html>
-3:style.css
+3:main
 async function search() {
     let searchTerm = document.forms.searchForm.term.value;
     let searchType = document.forms.searchForm.searchType.value;
