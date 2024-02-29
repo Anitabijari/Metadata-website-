@@ -1,0 +1,107 @@
+ 1:abstraction 
+import fs from 'fs';
+import musicMetadata from 'music-metadata';
+import mysql from 'mysql2/promise';
+
+const db = await mysql.createConnection({
+    host: '161.97.144.27',
+    port: 8095,
+    user: 'root',
+    password: 'guessagain95',
+    database: 'Group5SearchEngine'
+  });
+
+async function query(sql, listOfValues) {
+  let result = await db.execute(sql, listOfValues);
+  return result[0];
+}
+
+const files = await fs.readdirSync('client/music/');
+
+for (let file of files) {
+
+  let metadata = await musicMetadata.parseFile('client/music/' + file);
+
+  delete metadata.native;
+  delete metadata.quality;
+  delete metadata.common.disk;
+
+  let result = await query(`
+    INSERT INTO music (music_filename, music_metadata)
+    VALUES(?, ?)
+  `, [file, metadata]);
+
+  console.log(file, result);
+
+}
+
+process.exit();
+2:Index
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <h1>Music search</h1>
+
+  <form name="searchForm" onsubmit="search(); return false">
+    <input name="term" placeholder="Search term">
+    <button type="submit">Search</button>
+    <p><a href="index.html" class="back">Back to main page</a></p>
+    <p class="search-label">
+      Search for:
+      <select name="searchType">
+        <option value="all">All song information</option>
+        <option value="artist">Artist name</option>
+        <option value="album">Album name</option>
+        <option value="title">Song title</option>
+        <option value="genre">Genre</option>
+      </select>
+    </p>
+  </form>
+
+  <article class="searchResults">
+    Search for music by artist name, album name, song title or genre.
+  </article>
+  
+  <script src="main-music.js"></script>
+</body>
+
+</html>
+3:style.css
+async function search() {
+    let searchTerm = document.forms.searchForm.term.value;
+    let searchType = document.forms.searchForm.searchType.value;
+    console.log(searchType);
+    document.forms.searchForm.term.value = '';
+    let allData = await fetch('/api/music/' + searchTerm + '/' + searchType);
+    let Tracks = await allData.json();
+    console.log("result from server", Tracks)
+    let html = `
+      <p>You searched for "${searchTerm}"...</p>
+      <p>Found ${Tracks.length} results.</p>
+    `;
+    for (let music of Tracks) {
+      let meta = music.music_metadata.common;
+      html += `
+        <section>
+          <h2>${meta.title}</h2>
+          <p><b>Artist:</b> ${meta.artist}</p>
+          <p><b>Album:</b> ${meta.album}</p> 
+          <p><b>Release Year:</b> ${meta.year}</p>
+          <p><b>Genre:</b> ${meta.genre}</p>  
+          <p>
+            <audio controls src="music/${music.music_filename}">
+          </p>
+        </section>  
+      `;
+    }
+    let searchResultsElement = document.querySelector('.searchResults');
+    searchResultsElement.innerHTML = html;
+  }
