@@ -1,0 +1,109 @@
+1:extract data :
+import fs from 'fs';
+import pdfParse from 'pdf-parse-fork';
+import mysql from 'mysql2/promise';
+ 
+const db = await mysql.createConnection({
+    host: '161.97.144.27',
+    port: 8095,
+    user: 'root',
+    password: 'guessagain95',
+    database: 'Group5SearchEngine'
+  });
+ 
+async function query(sql, listOfValues) {
+  let result = await db.execute(sql, listOfValues);
+  return result[0];
+}
+ 
+const files = await fs.readdirSync('client/PDF/');
+ 
+for (let file of files) {
+ 
+  let metadata = await pdfParse(fs.readFileSync('client/PDF/' + file));
+
+  // delete metadata.text;
+  
+  metadata.text = metadata.text.slice(0,200); // only keep 200 characters
+ 
+  let result = await query(`
+    INSERT INTO PDF (pdf_fileName, pdf_metadata)
+    VALUES(?, ?)
+  `, [file, metadata]);
+ 
+ 
+  console.log(file, result);
+ 
+}
+ 
+process.exit();
+2: index:
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF serach</title>
+  <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+  <h1>PDF</h1>
+
+  <form name="searchForm" onsubmit="search(); return false">
+    <input name="term" placeholder="Search term">
+    <button type="submit">Search</button>
+    <p><a href="index.html" class="back">Back to main page</a></p>
+    <p class="search-label">
+      Search for:
+      <select name="searchType">
+        <option value="all">All information </option>
+        <option value="Title">Title</option>
+        <option value="Author">Author</option>
+        <option value="CreationDate">Date of Publication</option>
+      </select>
+    </p>
+  </form>
+
+  <article class="searchResults">
+    Search for a PDF-file by author, title, date of publication or text in a file.
+  </article>
+  <script src="main-pdf.js"></script>
+</body>
+
+</html>
+3:main:
+async function search() {
+  let searchTerm = document.forms.searchForm.term.value;
+  let searchType = document.forms.searchForm.searchType.value;
+  console.log(searchType);
+  document.forms.searchForm.term.value = '';
+  let allData = await fetch('/api/pdf/' + searchTerm + '/' + searchType);
+  let datas = await allData.json();
+  let html = `
+    <p>You searched for "${searchTerm}"...</p>
+    <p>Found ${datas.length} results.</p>
+  `;
+
+  let counter = 1;
+  for (let PDF of datas) {
+      let meta = PDF.pdf_metadata.info;
+        html += `
+            <section>
+                <h2>${meta.Title}</h2>
+                <p><b>Author:</b> ${meta.Author}</p>
+                <p><b>Date of Publication:</b> ${meta.CreationDate}</p>
+              <p>  
+                  ${counter <= 3 ? `<embed src="PDF/${PDF.pdf_fileName}" class="pdfView"><br>` : ''}
+                  <a href="PDF/${PDF.pdf_fileName}" target="_blank">View the pdf...</a>
+              </p>
+            </section>
+        `;
+        counter = counter + 1; // counter++;
+    }
+  let searchResultsElement = document.querySelector('.searchResults');
+  searchResultsElement.innerHTML = html;
+}
+
