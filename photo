@@ -1,0 +1,120 @@
+1.exctract
+import fs from 'fs'; 
+import exifr from 'exifr';
+import mysql from 'mysql2/promise';
+ 
+const db = await mysql.createConnection({
+    host: '161.97.144.27',
+    port: 8095,
+    user: 'root',
+    password: 'guessagain95',
+    database: 'Group5SearchEngine'
+  });
+ 
+async function query(sql, listOfValues) {
+  let result = await db.execute(sql, listOfValues);
+  return result[0];
+}
+ 
+const imageFolder = 'client/photos/';
+const imageFiles = fs.readdirSync(imageFolder);
+ 
+for (const imageFile of imageFiles) {
+  if (imageFile.slice(-4) === '.JPG') {
+    try {
+      const imagePath = `${imageFolder}${imageFile}`;
+ 
+      if (fs.existsSync(imagePath)) {
+        console.log(`Processing file: ${imageFile}`);
+        const metadata = await exifr.parse(imagePath);
+ 
+        console.log('Metadata:', metadata);
+ 
+        const result = await query(`
+          INSERT INTO photos (Photo_filename, Photo_metadata)
+          VALUES (?, ?)
+        `, [imageFile, JSON.stringify(metadata)]);
+ 
+        console.log('Query Result:', result);
+        console.log(`File ${imageFile} processed successfully.`);
+      } else {
+        console.log(`File ${imageFile} does not exist.`);
+      }
+    } catch (error) {
+      console.error(`Error processing file ${imageFile}: ${error.message}`);
+    }
+  }
+}
+ 
+await db.end();
+2: index:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photos</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+<h1 class="photo">Photo List</h1>
+<p class="photo2">Click a photo to show the location where it was taken.</p>
+<p class="backtomain"><a href="index.html" class="back">Back to main page</a></p>
+<!--
+<form name = "searchForm" onsubmit="search(); return false">
+<input name="term" placeholder="search term">
+<button type="submit">search</button>
+<p><a href="index.html">Back to main page</a></p>
+<p>
+    Search for:
+    <select name="searchType">
+      <option value="all">view all photos</option>
+    </select>
+  </p>
+</form>
+-->
+<article class="searchResults">
+    
+</article>
+<script src="main-photos.js"></script>
+</body>
+</html>
+3:main
+async function search() {
+ //let searchTerm = document.forms.searchForm.term.value;
+ // let searchType = document.forms.searchForm.searchType.value;
+  //console.log(searchType);
+    //document.forms.searchForm.term.value = '';
+
+    // let allData = await fetch('/api/photos/' + searchTerm + '/' + searchType);
+    let allData = await fetch('/api/photos');
+
+    let photos = await allData.json();
+   
+   // let html = `
+  //  <p>You searched for "${searchTerm}"...</p>
+  //  <p>Found ${photos.length} photos.</p>
+  //`;
+
+  let html = '';
+
+
+    for(let photo of photos) {
+      html += `
+        <section>
+        <p class="phototext"><b>ISO:</b> ${photo.Photo_metadata.ISO}</p>
+        <p class="phototext"><b>Make:</b> ${photo.Photo_metadata.Make}</p>
+        <p class="phototext"><b>Model:</b> ${photo.Photo_metadata.Model}</p>
+        <a href="https://maps.google.com/?q=${photo.Photo_metadata.latitude},${photo.Photo_metadata.longitude}" target="_blank"><img src="photos/${photo.Photo_filename}"></a>
+        </section>
+    
+`;
+
+}
+let searchResultsElement = document.querySelector('.searchResults');
+searchResultsElement.innerHTML = html;
+}
+
+// RUN DIRECTLY
+search();
